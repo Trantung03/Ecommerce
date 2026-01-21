@@ -26,6 +26,14 @@ Dự án này được thiết kế để **ngăn overselling** và đảm bảo
 ---
 
 ## Key Features
+### Yêu cầu khách hàng
+
+Catalog: Quản lý variants (Size/Màu), phân trang, lọc giá
+Cart: Guest + Customer, check tồn kho
+Inventory Locking (CRITICAL): Giữ hàng 10-15 phút khi checkout
+Payment: COD + SePay (defer Phase 2)
+Order Tracking: Email link, không cần đăng nhập
+Admin: Xem đơn + đổi status
 
 ### Must-Have (Completed)
 - Product Catalog + Sku (Size / Color)
