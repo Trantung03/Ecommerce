@@ -28,12 +28,17 @@ Dự án này được thiết kế để **ngăn overselling** và đảm bảo
 ## Key Features
 ### Yêu cầu khách hàng
 
-Catalog: Quản lý variants (Size/Màu), phân trang, lọc giá
-Cart: Guest + Customer, check tồn kho
-Inventory Locking (CRITICAL): Giữ hàng 10-15 phút khi checkout
-Payment: COD + SePay (defer Phase 2)
-Order Tracking: Email link, không cần đăng nhập
-Admin: Xem đơn + đổi status
+- Catalog: Quản lý variants (Size/Màu), phân trang, lọc giá
+
+- Cart: Guest + Customer, check tồn kho 
+
+- Inventory Locking (CRITICAL): Giữ hàng 10-15 phút khi checkout
+
+- Payment: COD + SePay (defer Phase 2)
+
+- Order Tracking: Email link, không cần đăng nhập
+
+- Admin: Xem đơn + đổi status
 
 ### Must-Have (Completed)
 - Product Catalog + Sku (Size / Color)
@@ -59,11 +64,11 @@ Admin: Xem đơn + đổi status
 <img width="1585" height="934" alt="E-commerceSystem" src="https://github.com/user-attachments/assets/db3f2594-418d-4e89-8b17-5a307ab24b4c" />
 
 
-Hybrid ID Strategy: Auto-increment (users, products) vs UUID (orders, carts, reservations)
+Hybrid ID Strategy: Auto-increment (users, products, orders, carts, reservations)
 
-Product Variants: Separate table để track stock cho từng Size/Màu
+Product Sku: Separate table để track stock cho từng Size/Màu
 
-Inventory Reservations: Bảng riêng giữ hàng 15 phút, không lock trực tiếp product_variants
+Inventory Reservations: Bảng riêng giữ hàng 15 phút, không lock trực tiếp Sku
 
 2. Tech Stack
    
@@ -100,69 +105,55 @@ int available = stock - SUM(active_reservations);
 
 Layer 3: Transaction Isolation
 
-@Transactional(isolation = Isolation.READ_COMMITTED)
-Sequence Diagram: ./images/Sequence_Diagram_Inventory_Locking.png
-
-Luồng xử lý:
-
-Customer A → POST /checkout/prepare
-START TRANSACTION + SELECT ... FOR UPDATE (lock row)
-Calculate: Available = Stock (1) - Active Reservations (0) = 1
-INSERT reservation (expires_at = NOW + 15m)
-COMMIT (release lock)
-Customer B bị block → tính lại Available = 0 → REJECT
-Cleanup: Scheduled task chạy mỗi 5 phút để expire old reservations
+@Transactional
 
 2. Public Order Tracking
-Challenge: Khách track order mà không cần login
+   
+ Khách track order mà không cần login
 
 Solution: Email Verification + Content Negotiation
 
-GET /api/v1/public/orders/{uuid}?email=customer@example.com
+GET /api/v1/public/orders/{id}?email=customer@example.com
+
 Accept: text/html → HTML view
+
 Accept: application/json → JSON API
+
 Security:
 
-UUID order ID (không đoán được)
-Email verification (chỉ người có email)
-Rate limiting ready
+- orderID
 
-3. Email System
-Challenge: Order confirmation emails không làm crash order creation
-
-Solution: Strategy Pattern + Conditional Bean
-
-// Production
-@ConditionalOnProperty(name = "spring.mail.enabled", havingValue = "true")
-public class EmailServiceImpl { }
-
-// Development (no-op)
-@ConditionalOnProperty(name = "spring.mail.enabled", havingValue = "false")
-public class NoOpEmailService { }
-Result:
-
-Non-blocking (order creation NEVER fails)
-Dev-friendly (no SMTP required locally)
-Professional HTML templates (Thymeleaf)
+- Email verification (chỉ người có email)
 
 ## CÀI ĐẶT & CHẠY ỨNG DỤNG
 
-1. Yêu Cầu Hệ Thống
-Component	Version	Note
-Java	21 (LTS)	Required
-Maven	3.9+	Wrapper included
-Docker	Latest	Recommended for DB
-Mysql
-Postman	Latest	For testing
+### Yêu Cầu Hệ Thống
+   
+| Component | Version | Note |
+|----------|---------|------|
+| Java | 21 (LTS) | Required |
+| Maven | 3.9+ | Wrapper included |
+| Docker | Latest | Recommended for DB |
+| MySQL | 8.0.36 |  |
+| Postman | Latest | For testing |
 
-2. Clone Repository
-git clone 
+
+### Clone Repository
+```bash
+git clone https://github.com/Trantung03/Ecommerce.git
 cd e-commerce
+```
+###  Cài Đặt Database
 
-3. Configuration
-File src/main/resources/application.yaml:
+```bash
+# Start MySQL container
+docker-compose up -d
 
-# Database Configuration
+# Verify container is running
+docker ps
+```
+ Database Configuration
+ ```bash
 spring:
   application:
     name: ecommerce
@@ -174,8 +165,10 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+```
 
-# Email Configuration (Gmail SMTP)
+### Email Configuration (Gmail SMTP)
+```bash
   mail:
     enabled: true
     host: smtp.gmail.com
@@ -192,124 +185,73 @@ spring:
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
-
+```
 # Order Tracking URL (for email links)
-app.order.tracking.base-url=http://localhost:8080/api/v1/public/orders
+app.order.tracking.base-url=http://localhost:8080/ecommerce/api/v1/public/orders
 
 # Server Configuration
 
 server.port=8080
-Cấu hình Email (Required cho email notifications):
 
-Bước 1: Tạo Gmail App Password
+Cấu hình Email (Required cho email notifications)
 
-Vào Google Account Security
+ Bước 1: Tạo Gmail App Password
 
-Bật 2-Step Verification
-Vào App passwords → Generate new password
-Chọn Mail + Other (Custom name) → Nhập "E-Commerce API"
-Copy 16-digit password (vd: abcd efgh ijkl mnop)
+1. Vào [Google Account Security](https://myaccount.google.com/security)
+2. Bật **2-Step Verification**
+3. Vào **App passwords** → Generate new password
+4. Chọn **Mail** + **Other (Custom name)** → Nhập `"E-Commerce API"`
+5. Copy **16-digit password** (vd: `abcd efgh ijkl mnop`)
 
-Bước 2: Update application.properties
+ Bước 2: Update `application.properties`
 
+```properties
 spring.mail.username=your-email@gmail.com
 spring.mail.password=abcd efgh ijkl mnop
+```
 
 4. Build & Run Application
 
-# Build project
+##### Build project
+```bash
 ./mvnw clean package
-
-# Run application
+```
+##### Run application
+```bash
 ./mvnw spring-boot:run
+```
 Alternative: Run compiled JAR
+```bash
 
 java -jar target/e-commerce-0.0.1-SNAPSHOT.jar
-5. Verify Application is Running
-
-# Check health
-curl http://localhost:8080/actuator/health
-
-# Expected response:
-{"status":"UP"}
-
-# Run entire collection
-
-newman run E-Commerce-API.postman_collection.json \
-  -e E-Commerce.postman_environment.json \
-  --reporters cli,html \
-  --reporter-html-export test-results.html
-
-Architecture & Design
-
-Tech Stack
-
-Layer	Technology
-
-Backend Framework	Spring Boot 4.0.1
-
-Language	Java 21 (LTS)
-
-Database	MySQL
-
-ORM	Spring Data JPA + Hibernate
-
-Build Tool	Maven 3.9+
-
-Database Schema (ERD)
-
-        Cart ─────< (N) CartItem >───── (1) ProductVariant
-                                                  │
-         Order ────< (N) OrderItem >──────────────┘
-                                                  │
-         InventoryReservation >───────────────────┤
-                                                  │
-Category (1) ────< (N) Product ─────< (N) Sku ────┘
+```
                                           
-# API Endpoints Summary
-```
-Endpoint	Method	Auth	Description
+## API Endpoints Summary
 
-/api/products	GET	Public	Browse products (filters)
+| Endpoint | Method | Auth | Description |
+|---------|--------|------|-------------|
+| /api/products | GET | Public | Browse products (filters) |
+| /api/products/{id} | GET | Public | Product details |
+| /api/cart | GET | Customer | View cart |
+| /api/cart/addItems | POST | Customer | Add to cart |
+| /api/cart/updateItems | PUT | Customer | Update quantity |
+| /api/cart/items/{id} | DELETE | Customer | Remove item |
+| /api/checkout/checkout | POST | Customer | Reserve stock |
+| /api/checkout/verify/{id} | GET | Customer | Verify reservation |
+| /api/orders | POST | Guest / Customer | Create order |
+| /api/orders | GET | Customer | My orders |
+| /api/orders/{id} | GET | Customer | Order details |
+| /api/public/orders/{id} | GET | Public | Track order (HTML / JSON) |
+| /api/orders | GET | Admin | All orders |
+| /api/orders/{id} | GET | Admin | Any order details |
+| /api/orders/{id}/status | PATCH | Admin | Update status |
 
-/api/products/{id}	GET	Public	Product details
-
-/api/cart	GET	Customer	View cart
-
-/api/cart/addItems	POST	Customer	Add to cart
-
-/api/cart/updateItems	PUT	Customer	Update quantity
-
-/api/cart/items/{id}	DELETE	Customer	Remove item
-
-/api/checkout/checkout	POST	Customer	Reserve stock
-
-/api/checkout/verify/{id}	GET	Customer	Verify reservation
-
-/api/orders	POST	Guest/Customer	Create order
-
-/api/orders	GET	Customer	My orders
-
-/api/orders/{id}	GET	Customer	Order details
-
-/api/public/orders/{id}	GET	Public	Track order (HTML/JSON)
-
-/api/orders	GET		All orders
-
-/api/orders/{id}	GET		Any order details
-
-/api/orders/{id}/status	PATCH		Update status
-
-Order Tracking (Content Negotiation)
-Strategy Pattern: Cùng 1 endpoint nhưng trả về HTML hoặc JSON tùy client
-
-Endpoint: GET /api/v1/public/orders/{orderId}?email={email}
-```
+## Order Tracking (Content Negotiation)
 Browser (HTML View)
-# Open in browser
-http://localhost:8080/api/v1/public/orders/faecce20-9ca3-4126-8c35-cc136344a474?email=customer@example.com
+### Open in browser
+http://localhost:8080/api/v1/public/orders/orderId?email=customer@example.com
 
-# Returns: Professional HTML page with order details
+### Returns: Professional HTML page with order details
 
  - Customer info (name, email, phone, address)
  - Order status badge (color-coded)
@@ -319,35 +261,38 @@ http://localhost:8080/api/v1/public/orders/faecce20-9ca3-4126-8c35-cc136344a474?
    
 Features:
 
-Professional UI (Segoe UI font, clean layout)
+- Professional UI (Segoe UI font, clean layout)
 
-Status badges (color-coded: PENDING=yellow, CONFIRMED=blue, PROCESSING=cyan, SHIPPED=green, DELIVERED=dark green)
+- Status badges (color-coded: PENDING=yellow, CONFIRMED=blue, PROCESSING=cyan, SHIPPED=green, DELIVERED=dark green)
 
-Formatted currency (4,500,000 đ)
+- Formatted currency (4,500,000 đ)
 
-Responsive design (grid layout for mobile)
+- Responsive design (grid layout for mobile)
 
-No authentication required (email verification)
+- No authentication required (email verification)
 
- API Client (JSON Response)
+- API Client (JSON Response)
+  
 # Postman or curl
 curl -H "Accept: application/json"
-  "http://localhost:8080/api/v1/public/orders/faecce20...?email=customer@example.com"
+  "http://localhost:8080/api/v1/public/orders/12?email=customer@example.com"
 
 # Returns JSON:
+```bash
 {
   "code": 200,
   "message": "Success",
-  "data": {
-    "id": "faecce20-9ca3-4126-8c35-cc136344a474",
+  "result": {
+    "id": "",
     "customerName": "Guest Test User",
     "status": "PENDING",
     "totalAmount": 4500000.00,
     "items": [...]
   }
 }
+```
 Architecture:
-
+```bash
 // Strategy 1: HTML View
 @Controller
 class PublicOrderViewController {
@@ -356,15 +301,18 @@ class PublicOrderViewController {
         return "order-tracking"; // Thymeleaf template
     }
 }
-
+```
 // Strategy 2: JSON Response
+```bash
+
 @RestController
 class PublicOrderController {
     @GetMapping(value = "/{orderId}", produces = "application/json")
-    ResponseEntity<ApiResponse<OrderDTO>> trackOrder(...) {
-        return ResponseEntity.ok(...);
+    ApiResponse<OrderDTO> trackOrder(...) {
+        return ApiResponse.builder().(...).build();
     }
 }
+```
 Spring MVC tự động chọn controller dựa trên:
 
 Browser request → Accept: text/html → HTML view
@@ -380,48 +328,31 @@ GET /api/products?categoryId=1
 - Filter by price range
 GET /api/products?minPrice=3000000&maxPrice=5000000
 
-Key Design Decisions
-1. Stock Reservation (Pessimistic Locking)
-// InventoryReservation Entity
-- reservedQuantity: int
-- expiresAt: LocalDateTime (15 minutes)
-- status: ACTIVE | COMPLETED | EXPIRED
 
-// Scheduler runs every 5 minutes
-@Scheduled(fixedRate = 300000)
-void cleanupExpiredReservations()
-Benefits:
-
-Prevents overselling
-Fairness (first-come-first-served)
-Auto-cleanup expired reservations
-2. Guest vs Customer Cart
-// Guest: X-Guest-ID header (UUID)
-// Customer: JWT token (@AuthenticationPrincipal)
-
-// CartService resolves cart by:
-if (userId != null) {
-    return cartRepository.findByUserId(userId);
-} else {
-    return cartRepository.findBySessionId(sessionId);
-}
-3. Email Templates (Thymeleaf)
+#### Email Templates (Thymeleaf)
 Location: src/main/resources/templates/email/
 
 <!-- order-confirmation.html -->
 
-- Professional dark theme (gray #1a1a1a + blue #0066cc) - Order summary (ID,
-total amount, payment method) - Items table (product name, SKU, size/color,
-quantity, price) - Tracking link button (→ HTML view) - Customer info (shipping
-address) - Footer with brand info
+- Professional dark theme (gray #1a1a1a + blue #0066cc)
+- Order summary (ID, total amount, payment method)
+- Items table (product name, SKU, size/color, quantity, price)
+- Tracking link button (→ HTML view)
+- Customer info (shipping address)
+- Footer with brand info
 
 <!-- order-status-update.html -->
+
 - Status change visualization (OLD → NEW with arrow) - Color-coded status badges
+  
 - Tracking link - Professional footer
+  
 Email Triggers:
 
 Event	Template	Recipient	Trigger Point
+
 Order Created	order-confirmation.html	Customer email	After order creation
+
 Status Updated	order-status-update.html	Customer email	Admin updates status
 
 
@@ -453,9 +384,13 @@ e-commerce/
 ```
 
 Contact & Support
+
 Developer: TungTS17
+
 Email: TungTS17@fpt.edu.vn
+
 GitHub: https://github.com/Trantung03/Ecommerce
 
 Instructor: Anh Hùng (HungHypeBeast)
+
 Course: Backend Development - Phase 1
