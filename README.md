@@ -238,7 +238,7 @@ java -jar target/e-commerce-0.0.1-SNAPSHOT.jar
 | /api/cart/items/{id} | DELETE | Customer | Remove item |
 | /api/checkout/checkout | POST | Customer | Reserve stock |
 | /api/checkout/verify/{id} | GET | Customer | Verify reservation |
-| /api/orders | POST | Guest / Customer | Create order |
+| /api/orders | POST | Customer | Create order |
 | /api/orders | GET | Customer | My orders |
 | /api/orders/{id} | GET | Customer | Order details |
 | /api/public/orders/{id} | GET | Public | Track order (HTML / JSON) |
